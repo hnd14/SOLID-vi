@@ -1,0 +1,18 @@
+@startuml Figure 8-2
+object "Computational \n Geometry \n Application" as ComGeo
+class "Rectangle" as Rect {
+    draw()
+}
+
+class "Geometric Rectangle" as GeoRect {
+    area(): Double
+}
+abstract GUI 
+object "Graphical \n Application" as Graphic
+
+ComGeo -d-> GeoRect
+Rect -l-> GeoRect
+Rect -r-> GUI
+Graphic -d-> Rect
+Graphic -> GUI
+@enduml

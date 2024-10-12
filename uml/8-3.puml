@@ -1,0 +1,14 @@
+@startuml Figure 8-3
+class "ModemImpl" as modem
+interface "Data channel" as ch {
+    + send(char)
+    + recv()
+}
+interface "Connection" as conn {
+    + dial(pno: String)
+    + hangup()
+}
+
+modem .u.> ch
+modem .u.> conn
+@enduml

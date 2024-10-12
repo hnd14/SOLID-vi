@@ -1,0 +1,9 @@
+@startuml Figure 8-4
+object "Persistence Subsystem" as per
+class "Employee" as emp {
+    + CalculatePay()
+    + Store()
+}
+
+per <- emp
+@enduml
