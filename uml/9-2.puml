@@ -1,0 +1,8 @@
+@startuml Figure 9-2
+class Client
+interface ClientInterface
+class Server
+
+Client -r-> ClientInterface
+Server -u-|> ClientInterface
+@enduml

@@ -1,0 +1,6 @@
+@startuml Figure 9-1
+class Client 
+class Server 
+
+Client -> Server
+@enduml

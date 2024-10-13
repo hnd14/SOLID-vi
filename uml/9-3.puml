@@ -1,0 +1,9 @@
+@startuml Figure 9-3
+abstract Policy {
+    + PolicyFunction()
+    # ServiceFunction()
+}
+class Implementation
+
+Implementation -u-> Policy
+@enduml
