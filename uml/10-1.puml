@@ -1,0 +1,5 @@
+@startuml Figure 10-1
+class Square
+class Rectangle
+Square -u-|> Rectangle
+@enduml
