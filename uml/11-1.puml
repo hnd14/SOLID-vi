@@ -1,0 +1,7 @@
+@startuml Figure 11-1
+rectangle "Policy Layer" as policy
+rectangle "Mechanism Layer" as mech
+rectangle "Utility Layer" as util
+policy ..> mech
+mech ..> util
+@enduml

@@ -1,0 +1,21 @@
+@startuml Figure 11-2
+package Policy{
+rectangle "Policy Layer" as policy
+rectangle "Policy Service Interface" <<interface>> as polInt
+}
+
+package Mechanism{
+rectangle "Mechanism Layer" as mech
+rectangle "Mechanism Service Interface" <<interface>> as mechInt
+}
+
+package Utility{
+rectangle "Utility Layer" as ult
+}
+
+policy -r-> polInt
+mech .u.|> polInt
+mech -r-> mechInt
+ult .u.|> mechInt
+
+@enduml
