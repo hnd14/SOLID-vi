@@ -1,0 +1,12 @@
+@startuml Figure 12-3
+class Timer
+interface TimerClient <<interface>> {
+    + Timeout()
+}
+interface Door
+class TimedDoor
+Timer -l-> "0..*" TimerClient
+TimedDoor -u-|> TimerClient
+TimedDoor -u-|> Door
+TimedDoor .u.> Timer
+@enduml
