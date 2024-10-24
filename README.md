@@ -197,6 +197,270 @@ Một cách khác thường dùng để đạt được OCP được mô tả �
 
 ### Ứng dụng `Shape`
 
+Ứng dụng `Shape` nổi tiếng dưới đây đã được nhắc đi nhắc lại trong vô số cuốn sách về thiết kế hướng đối tượng. Nó thường được dùng để thể hiện cách mà tính đa hình hoạt động. Tuy vậy, bây giờ ta sẽ dùng nó để ví dụ cho OCP.
+
+Ta có một phần mềm cần phải vẽ các hình vuông và hình tròn lên một GUI. Các hình vuông và hình tròn cần được vẽ theo một thứ tự nhất định. Một list các hình vuông cà tròn theo thứ tự sẽ được cấp, chương trình phải đọc list đó và tuần tự vẽ hình ở từng bước.
+
+#### Vi phạm OCP
+
+Ngôn ngữ C sử dụng phương pháp lập trình thủ tục không tuân thủ OCP để xử lý vấn đề này. Ta có thể xử lý vấn đề này như cách làm trong *snippet 9-1* . Ở đây ta có một cấu trúc dự liệu có chung phần tử đầu tiên là code chỉ loại và còn lại thì khác nhau. Hàm `DrawAllShape` sẽ duyệt qua mảng các con trỏ chỉ đến cấu trúc dữ liệu này, dựa vào code loại để gọi đúng hàm vẽ hình vuông hay hình tròn.
+
+```c
+--shape.h---------------------------------------
+enum ShapeType {circle, square};
+struct Shape
+{
+ ShapeType itsType;
+};
+--circle.h---------------------------------------
+struct Circle
+{
+    ShapeType itsType;
+    double itsRadius;
+    Point itsCenter;
+};
+void DrawCircle(struct Circle*);
+--square.h---------------------------------------
+struct Square
+{
+    ShapeType itsType;
+    double itsSide;
+    Point itsTopLeft;
+};
+void DrawSquare(struct Square*);
+--drawAllShapes.cc-------------------------------
+typedef struct Shape *ShapePointer;
+void DrawAllShapes(ShapePointer list[], int n)
+{
+    int i;
+    for (i=0; i<n; i++)
+ {
+    struct Shape* s = list[i];
+    switch (s->itsType)
+    {
+        case square:
+            DrawSquare((struct Square*)s);
+        break;
+        case circle:
+            DrawCircle((struct Circle*)s);
+        break;
+    }
+ }
+}
+
+```
+*Snippet 9-1*
+
+Hàm `DrawAllShape` không tuân thủ OCP vì nó không thể đóng với những loại hình mới. Nếu tôi muốn mở rộng phần mềm này để có thể vẽ được cả tam giác, tôi sẽ không thể làm gì khác ngoài việc chỉnh sửa hàm này. Thực tế là tôi sẽ phải sửa hàm này mỗi lần tôi muốn vẽ được thêm một loại hình.
+
+Tất nhiên, chương trình này chỉ là một ví dụ đơn giản. Trong thực tế, câu lệnh `switch` trong `DrawAllShape` sẽ cần phải được lặp đi lặp lại ở vô số nơi, mỗi nơi lại khác đi một ít, trong khắp chương trình. Sẽ có những hàm thực hiện kéo hình, dời hình, xóa hình, ... Việc thêm một loại hình vào chương trình này đồng nghĩa với việc phải tìm toàn bộ những nơi sử dụng các câu lệnh `switch` hay `if/else` và thêm hình mới ở đó.
+
+Hơn thế nữa, điều kiện của các câu lệnh `if/else` này có thể sẽ không đẹp và đơn giản như câu lệnh `switch` trong `DrawAllShape`. Thực tế là ở mỗi câu lệnh điều kiện, khả năng cao là chúng sẽ được kết hợp với những điều kiện khác để làm cho việc quyết định hành động ở khu vực đó trở nên dễ hơn, hay là các câu lệnh `case` sẽ được kết hợp để "đơn giản hóa" việc quyết định hành động. Thậm chí, sẽ có cả những phần công việc giống nhau cho cả hình vuông và hình tròn, và ở những khu vực sử dụng chúng sẽ thậm chí không có câu lệnh `if/else` hay `switch/case`. Vì những vấn đề kể trên, việc tìm ra tất cả những nơi mà hình mới cần được thêm vào là không hề đơn giản.
+
+Chưa hết, xem xét tới loại thay đổi cần phải được thực hiện. Vì ta sẽ phải thêm một member vào enum ShapeType, ta sẽ phải compile lại nó. Những loại hình khác đều phụ thuộc vào enum này, khi enum này được compile lại, ta cũng phải compile lại tất cả những class hình khác. Và rồi ta cũng sẽ phải compile lại tất cả các module phụ thuộc vào `Shape`.
+
+Vậy là ta không chỉ cần phải sửa source code ở những nói dùng `if/else` và `switch/case`, ta còn phải chỉnh sửa tất cả các file binary của toàn bộ modules dùng bất kỳ loại `Shape` nào. Thay đổi binary đồng nghĩa với việc toàn bộ DDLs, shared library, hay thành phần binary đều phải được redeploy. Ta có thể dễ dàng nhận thấy hệ quả của việc thêm chỉ một `Shape` là vô cùng lớn khi mà nó buộc ta phải thay đổi rất nhiều source và binary modules khác nhau.
+
+**Thiết kệ tệ** - Vậy nói tóm lại, thiết kế trên ở *snippet 9-1* là một thiết kế tệ. Nó *cứng nhắc* vì việc thêm một `Triangle` vào sẽ buộc việc phải compile và deploy lại toàn bộ `Shape`, `Square`, `Circle`, và `DrawAllShape`. Nó *dễ vỡ* vì sẽ có vô số những câu lệnh `if/else` và `switch/case` rất khó để tìm thấy cũng như hiểu. Nó *ục ịch* vì nếu muốn tái sử dụng `DrawAllShape` ở một chương trình khác, ta phải mang theo cả `Square` và `Circle`mặc dù chương trình đó không cần chúng. Rõ ràng, thiết kế này chứa đầy dấu hiệu cảu  một thiết kế tệ.
+
+#### Tuân thủ OCP
+
+*Snippet 9-2* là một giải pháp tuân thủ OCP. Trong trường hợp này, ta tạo ra một lớp trừu tượng `Shape`. Lớp trừu tượng này chỉ có một hàm trừu tượng là `Draw`. Cả `Square` và `Circle` đều sẽ được mở rộng từ `Shape`.
+
+```cpp
+class Shape
+{
+    public:
+        virtual void Draw() const = 0;
+};
+class Square : public Shape
+{
+    public:
+        virtual void Draw() const;
+};
+class Circle : public Shape
+{
+    public:
+        virtual void Draw() const;
+};
+void DrawAllShapes(vector<Shape*>& list)
+{
+    vector<Shape*>::iterator i;
+    for (i=list.begin(); i != list.end(); i++)
+        (*i)->Draw();
+}
+```
+
+Để ý rằng nếu ta muốn mở rộng hành vi của `DrawAllShape` ở `snippet 9-2` để vẽ một hình khác, tất cả những gì ta cần làm là thêm một lớp mở rộng từ `Shape`. `DrawAllShape` chẳng cần thay đổi gì cả. Vì thế `DrawAllShape` tuân thủ OCP. Hành vi của nó có thể được mở rộng mà không cần phải trực tiếp thay đổi source code. Thực tế, việc thêm class `Triangle` chẳng gây ảnh hưởng gì đến bất kỳ module nào ở đây. Tất nhiên, sẽ có những phần của phần mềm sẽ cần thay đổi để xử lý `Triangle`, nhưng phần code ở đây hoàn toàn miễn nhiễm với việc này.
+
+Trong thực tế, lớp `Shape` sẽ có nhiều hàm hơn thế này. Tuy vậy, việc thêm một hình mới vào sẽ tương đối đơn giản vì ta sẽ chỉ cần viết một lớp mở rộng cho `Shape` và cụ thể hóa tất cả các hàm cho nó. Ta chẳng cần phải đi lùng sục khắp phần mềm để tìm tất cả những nơi cần thay đổi, và vì thế, phần mêm này không hề *dễ vỡ*.
+
+Thiết kế này cũng không cứng nhắc. Chẳng có module hiện hữu nào cần phải bị thay đổi cả, và trừ module phải tạo ra các hình cụ thể, không module nào cần phải được compile lại cả. Thông thường những thay đổi này sẽ được thực hiện ở `main`, ở một vài hàm được gọi bởi `main`, hoặc là ở phương thức của một vài đối tượng được tạo bơi `main`.
+
+Cuối cùng, phương pháp này không *ục ịch*. Ta có thể tái sử dụng `DrawAllShape` ở bất cứ đâu mà không cần mang theo `Square` hay `Circle`. Như vậy, có thể thấy, thiết kế này hoàn toàn không có các dấu hiệu của thiết kế tệ liệt kê trước đó.
+
+Thiết kế này tuân thủ OCP. Nó thay đổi bằng cách thêm code mới thay vì chỉnh sửa code cũ. Bằng cách này nó không phải lãnh chịu việc hệ quả dây chuyền mà những phần mềm không tuân thủ OCP phải chịu
+
+#### Ừ thì cũng không hẳn
+
+Ví dụ vừa rồi chỉ là trường hợp lý tưởng! Tưởng tượng chuyện gì sẽ xảy ra với `DrawAllShape` ở *snippet 9-2* nếu ta quyết định rằng tất cả hình tròn phải được vẽ *trước* hình vuông? Hàm `DrawAllShape` không đóng với thay đổi như thế này! Để làm được điều này, ta cần phải scan danh sách các hình và lấy ra tất cả `Circle`, và sau đó cho `Square`.
+
+#### Dự đoán và cấu trúc "Tự nhiên"
+
+Nếu ta có thể đoán trước và chuẩn bị cho thay đổi như thế này, ta có thể nghĩ ra một việc trừu tượng hóa có thể bảo vệ ta trước thay dổi này. Cách trừu tượng hóa ở *snippet 9-2* bây giờ lại thành một chướng ngại cho ta trong việc thích nghi trước thay đổi này. Điều này có thể gây ngạc nhiên. Chẳng phải việc `Shape` là base class với `Square` và `Circle` là các lớp mở rộng là tự nhiên nhất rồi hay sao? Chẳng phải cấu trúc tự nhiên nhất là cấu trúc nên dùng nhất sao? Câu trả lời nằm ở việc mô hình này *không* tự nhiên trong một môi trường mà thứ tự quan trọng hơn loại hình.
+
+Điều này dẫn ta đến một kết luận đáng ngại: Tổng quát mà nói, cho dù một mmoo hình có đóng đén mức nào, vẫn có những thay đổi mà ta bị buộc phải mở nó. *Không cớ mô hình nào là hoàn hảo trong mọi trường hợp.*
+
+Bởi vì ta không thể đóng mô hình của mình hoàn toàn, ta cần đóng nó một cách có chọn lọc. Điều này có nghĩa là người thiết kế hệ thông cần phải chọn những thay đổi mà hệ thống của họ có thể bảo toàn trước những thay đổi đó.
+
+Điều này cần một lượng kinh nghiệm. Một kiến trúc sư đủ dày dặn kinh nghiệm mong rằng họ hiểu người dùng cũng như thị trường của sản phẩm của mình đủ tốt để có thể đánh giá xác suất xảy ra của mỗi thay đổi và sau đó ứng dụng OCP cho những thay đổi có xác suất cao nhất.
+
+Hơn thế nữa, tuân thủ OCP rất phức tạp và mất công. Nó yêu cầu người thiết kế phải bỏ thời gian để nghiên cứu và sáng tạo ra những cấu trúc trừu tượng phù hợp. Không chỉ thế, việc làm việc với những cấu trúc trừu tượng cũng làm cho việc phát triển phần mềm trở nên phức tạp hơn, và mỗi lập trình viên cũng có một giới hạn về độ trừu tượng mà họ có thể làm việc được. Có thể thấy, có nhiều lý do để ta muốn  chỉ apply OCP cho những thay đổi có khả năng xảy ra cao.
+
+Vậy làm sao ta biết được thay đổi nào có khả năng xảy ra cao? Ta chỉ có thể thực hiện các nghiên cứu phù hợp, đặt những câu hỏi phù hợp, và vận dụng kinh nghiệm cũng như nghĩ theo lẽ thường. Và sau đó, ta chỉ có cách là chờ cho đến lúc thay đổi xảy ra.
+
+#### Cài sẵn móc
+
+Làm sao để ta bảo vệ bản thân truốc những thay đổi? Trước đây, có một câu nói rằng ta sẽ cài sẵn những cái "móc" để chuẩn bị cho những thay đổi mà có thể xảy ra với niềm tim rằng việc làm vậy sẽ khiến phần mềm trở nên mềm dẻo hơn.
+
+Tuy vậy, những cái móc ta cài sẵn lại thường không đúng. Tệ hơn nữa, những cái móc này bốc mùi *phức tạp thừa thãi*, và ta sẽ phải bảo quản và hỗ trợ chúng mặc dù chúng chẳng giúp gì cho ta. Việc này cũng không tốt, ta không muốn phải tay xách nách mang đủ thứ trừ tượng hóa không cần thiết. Thay vì vậy, điều tốt hơn nên làm là việc chờ đến khi ta thực sự cần một sự trừu tượng rồi hẵng thêm nó vào. 
+
+**Bị dụ một lần** - Cổ ngữ có cầu: "Bạn dụ tôi một lần là lỗi của bạn, bạn dụ tôi hai lần là lỗi của tôi." Đây là một thái độ đúng đắn trong việc phát triển phần mềm. Để không phải đưa vào phần mềm của ta đủ thứ lỉnh kỉnh, ta chấp nhận để bản thân mình bị lừa một lần. Nghĩa là đầu tiên, khi ta lập trình ta sẽ làm như thể nó sẽ không cần phải thay đổi gì. Khi thay đổi xảy ra, ta sẽ thêm vào phần mềm cơ chế để chống lại *tất cả* thay đổi *tương tự*. Nói khác đi, ta sẽ chấp nhận ăn đòn một lần, và rồi tự bảo về mình trước tất cả những đòn đến từ cùng một nguồn.
+
+**Giả lập thay đổi** - Nếu ta chấp nhận rằng mình sẽ bị ăn đòn (ít nhât là đòn đầu tiên), ta muốn những đòn này đến càng sớm càng tốt. Chúng ta muốn biết càng sớm càng tốt những thay đổi có thể xảy ra cho phần mềm của mình. Càng đợi lâu, việc thay đổi càng trờ nên khó khăn và càng có nhiều ảnh hưởng.
+
+Chính vì thế, ta cần giả lập và chuẩn bị cho những thay đổi cso thể xảy ra. Ta sẽ làm việc này bằng nhiều cách như được liệt kê ở chương 2:
+
+- Viết test trước. Testing là một dạng sử dụng hệ thống. Bằng cách viết test trước, ta bắt hệ thống phải trở nên test được. Bằng cách này, thay đổi về mặt test sẽ không làm ta bất ngờ sau này.
+- Phát triển theo những giai đoạn ngắn - tính bằng ngày thay vì tuần.
+- Phát triển chức năng trước kiến trúc, và cho các bên liên quan được trải nghiệm những tính năng được phát triển.
+- Phát triển các tính năng quan trọng trước. 
+- Giao sản phẩm sớm và liên tục. Ta đưa sản phẩm của mình đến khách hàng và người dùng nhanh và thường xuyên nhất có thể.
+
+#### Tận dụng trừu tượng hóa để đạt được sự đóng rõ ràng
+
+Rồi, ta đã nhận một đòn đau. Người dùng bây giờ muốn ta vẽ hình tròn trước hình vuông. Bây giờ ta muốn bảo vệ bản thân khỏi bất cứ thay đổi nào tương tự trong tương lai.
+
+Làm sao để ta đóng phần mềm trước bất kỳ thay đổi nào về thứ tự của các hình? Nhớ rằng việc đóng của phần mềm luôn được dựa trên trừu tượng hóa. Vì vậy, nếu ta muốn đạt được tính đóng với thay đổi về thứ tự, ta cần có một trừu tượng hóa về thứ tự. Sự trừu tượng hóa này sẽ cho phép ta diễn tả bất kỳ chính sách thứ tự mong muốn nào thông qua một interface.
+
+Một chính sách thứ tự có nghia là với 2 vật thể bất kỳ ta có thể biết được là cần vẽ vật nào trước vật nào sau. Ta  có thể làm việc này bằng cách tạo một phương thức trừu tượng `Precede` trong `Shape` mà nó nhận vào một con trỏ đến một đối tượng `Shape`, trả về `true` nếu như hình hiện tại cần được vẽ trước hình được con trỏ đưa vào trỏ đến và `false` trong trường hợp ngược lại.
+
+Trong `C++`, điều này cũng có thể được diễn tả bằng việc overload dấu `<`. *Snippet 9-3* thể hiện lớp `Shape` sau khi ta thêm phương thức so sánh.
+
+Với việc đã có được cách để biết hình nào cần được vẽ trước và hình nào cần được vẽ sau, ta có thể thực hiện sắp xếp chúng trước khi vẽ chúng như *snippet 9-4*.
+
+```cpp
+class Shape
+{
+    public:
+        virtual void Draw() const = 0;
+        virtual bool Precedes(const Shape&) const = 0;
+        bool operator<(const Shape& s) {return Precedes(s);}
+};
+```
+*Snippet 9-3*
+
+```cpp
+template <typename P>
+class Lessp // utility for sorting containers of pointers.
+{
+    public:
+        bool operator()(const P p, const P q) {return (*p) < (*q);}
+};
+void DrawAllShapes(vector<Shape*>& list)
+{
+    vector<Shape*> orderedList = list;
+
+    sort(orderedList.begin(),
+    orderedList.end(),
+    Lessp<Shape*>());
+
+    vector<Shape*>::const_iterator i;
+    for (i=orderedList.begin(); i != orderedList.end(); i++)
+        (*i)->Draw();
+}
+```
+*Snippet 9-4*
+
+Việc này cho ta một cách để sắp xếp các đối tượng `Shape` và vẽ chúng theo đúng thứ tự. Tuy vậy, ta vẫn chưa có một trừu tượng hóa thứ tự rõ ràng. Như hiện tại, mỗi lớp con của shape vẫn cần override hàm `Precedes` để thể hiện thứ tự của mình. Xem xét đến code cần được viết cho `Circle::Precedes` để đảm bảo hình tròn được vẽ trước hình vuông. (*Snippet 9-5*)
+
+```cpp
+bool Circle::Precedes(const Shape& s) const
+{
+    if (dynamic_cast<Square*>(s))
+        return true;
+    else
+        return false;
+}
+```
+Rõ ràng rằng hàm này cũng như tất cả các hàm tương tự ở các lớp con khác của `Shape` không hề đóng. Chẳng có cách nào để đóng nó cho tất cả các mở rộng của `Shape`. Mỗi lần một `Shape` được tạo ra, tất cả các hàm `Precedes` phải được chỉnh sửa.
+
+Tất nhiên, điều này cũng không quan trọng nếu không có bất cứ hình nào mới được thêm vào. Mặt khác, nếu các loại `Shape` khác cứ liên tục được thêm vào, thiết kế này sẽ gây ra một hậu quả rất lớn. Một lần nữa, ta lại nhận cú đầu tiên.
+
+#### Sử dụng phương pháp "hướng dữ liệu" để đạt được tính đóng
+
+Nếu ta cần phải đóng các mở rộng của `Shape` với sự tồn tại của nhau, ta có thể áp dụng một bảng thứ tự. *Snippet 9-6* là một hướng tiếp cận.
+```cpp
+#include <typeinfo>
+#include <string>
+#include <iostream>
+using namespace std;
+class Shape
+{
+    public:
+        virtual void Draw() const = 0;
+        bool Precedes(const Shape&) const;
+        bool operator<(const Shape& s) const
+        {return Precedes(s);}
+    private:
+        static const char* typeOrderTable[];
+};
+const char* Shape::typeOrderTable[] =
+{
+    typeid(Circle).name(),
+    typeid(Square).name(),
+    0
+};
+// This function searches a table for the class names.
+// The table defines the order in which the
+// shapes are to be drawn. Shapes that are not
+// found always precede shapes that are found.
+//
+bool Shape::Precedes(const Shape& s) const
+{
+    const char* thisType = typeid(*this).name();
+    const char* argType = typeid(s).name();
+    bool done = false;
+    int thisOrd = -1;
+    int argOrd = -1;
+    for (int i=0; !done; i++)
+    {
+        const char* tableEntry = typeOrderTable[i];
+        if (tableEntry != 0)
+        {
+            if (strcmp(tableEntry, thisType) == 0)
+                thisOrd = i;
+            if (strcmp(tableEntry, argType) == 0)
+                argOrd = i;
+            if ((argOrd >= 0) && (thisOrd >= 0))
+                done = true;
+        }
+        else // table entry == 0
+            done = true;
+    }
+    return thisOrd < argOrd;
+}
+```
+*Snippet 9-6*
+
+Bằng cách tiếp cận này, ta đã có thể đóng `DrawAllShapes` với mọi thay đổi về thứ tự nói chung. Ta cũng đóng các mở rộng của `Shape` đối với việc có thêm những mở rộng mới hay là việc thứ tự mong muốn bị thay đổi.
+
+Thứ duy nhất không đóng ở đây trước những loại thay đổi này là bảng thứ tự. Bảng đó có thể được đặt tách ra ở một module riêng, tách biệt khỏi các module `Shape` để cho những thay đổi của nó không gây ảnh hưởng đến các modules này. Trong C++, ta thậm chí có thể chọn sử dụng bảng nào ở
+thời điểm link (link time).
+
+### Kết luận 
+Theo nhiều cách, OCP chính là trái tim của lập trình hướng đối tượng. Việc tuân thủ nguyên lý này là chìa khóa để đạt được những tính chất được hứa hẹn bởi lập trình hướng đối tượng. Tuy vậy, việc tuân thủ nguyên tắc này không phải đạt được chỉ bằng việc dùng ngôn ngữ lập trình hướng đối tượng. Đồng thời, ta cũng không nên mù quáng áp dụng trừu tượng hóa cho tất cả mọi phần của phần mềm mà thay vào đó, lập trình viên cần phải biết ứng dụng nó phù hợp cho những phần thường xuyên phải thay đổi trong phần mêm. *Chống lại trừu tượng hóa quá sớm cũng quan trọng như là việc trừu tượng hóa vậy*.
+
 ## L - Liskov Substitution Principle (LSP)
 
 Nguyên lý chính để đạt được OCP là tận dụng tính trừu tượng(abstraction) và tính đa hình(Polymorphism). Trong các ngôn ngữ lập trình `Statically typed` như Java hay C++, tính kế thừa(inheirantance) chính là phương pháp chính để đạt được tính trừu tượng và đa hình. Bằng cách dùng sự kế thừa, chứng ta có thể tạo ra những lớp con cụ thể hóa những hàm và lớp trừu tượng ban đầu.
