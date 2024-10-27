@@ -1267,6 +1267,7 @@ Bây giờ hãy cùng xem xét một ví dụ thú vị hơn. Vấn đề cơ b�
 Đồng thời, các loại giao dịch khác nhau có thể được thực hiện bởi máy ATM này cũng được cụ thể hóa thông qua một mở rộng của interface trừu tượng `Transaction`. Như vậy, ta có thể sẽ có các lớp như `DepositTransaction`, `WithdrawalTransaction`, và `TransferTransaction` mà mỗi lớp này lại sẽ gọi đến những hàm được cung cấp của UI. Ví dụ `DepositTransaction` sẽ gọi `RequestDepositAmount` để biết được người dùng muốn gửi bao nhiêu tiền. Tương tự vậy, `TransferTransaction` sẽ gọi `RequestTransferAmount` để xem người dùng muốn chuyển bao nhiêu tiền giữa các tài khoản. Điều này được thể hiện ở diagram 12-5.
 
 ![Figure 12-5](./imgs/Figure%2012-5.png)
+
 ***Hình 12-5.** Cấu trúc kế thừa của giao dịch ATM*
 
 Chú ý rằng đây chính xác là trường hợp mà ISP khuyên chúng ta nên tránh. Mỗi loại giao dịch chỉ dùng một vài phương thức của UI mà các loại giao dịch khác không dùng đến. Điều này tạo ra một khả năng rõ ràng là nếu có một thay đổi nào đó ở một transaction buộc UI phải thay đổi, tất cả các transaction cũng như các lớp phụ thuộc lên chúng phải được compile lại. Có một dấu hiệu dễ vỡ đâu đây!
@@ -1276,6 +1277,7 @@ Cụ thể hơn, ví dụ như có một `PayGasBillTransaction` được thêm 
 May mắn thay, sự ràng buộc không đáng có này có thể dễ bị phá vỡ bằng cách phân rã interface UI thành nhiều interface riêng lẻ cho mỗi loại giao dịch (`DepositUI`, `WithdrawalUI`, và `TransferUI`). Các interface này sau đó có thể được đa kế thừa bởi interface UI. *Hình 12-6* và *Snippet 12-6* thể hiện thiết kế này.
 
 ![Figure 12-6](./imgs/Figure%2012-6.png)
+
 ***Hình 12-6.** Cấu trúc kế thừa của giao dịch ATM đã được phân tách*
 
 Mỗi khi ta muốn thêm một loại giao dịch mới mở rộng từ `Transaction`, một UI tương ứng cho nó phải được tạo ra. Điều này buộc ta phải thay đổi UI interface cũng như các lớp con của nó. Tuy nhiên, các lớp này lại không có quá nhiều lớp phụ thuộc lên chúng. Thực tế là chúng chỉ được dùng bởi `main` hay là một process nào đó chịu trách nhiệm khởi động hệ thống và tạo các các đối tượng cụ thể của UI, do đó việc thay đổi trực tiếp vào UI cũng sẽ không có quá nhiều tác hại.

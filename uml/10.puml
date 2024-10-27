@@ -1,0 +1,69 @@
+@startuml Figure 10-1
+class Square
+class Rectangle
+Square -u-|> Rectangle
+@enduml
+
+@startuml Figure 10-2
+interface Set <<interface>> {
+    + add()
+    + delete()
+    + isMember()
+}
+
+class BoundedSet
+class UnboundedSet
+
+class 3rdBoundedSet
+class 3rdUnboundedSet
+
+BoundedSet -u-|> Set
+UnboundedSet -u-|> Set
+
+BoundedSet -d-> 3rdBoundedSet
+UnboundedSet -d-> 3rdUnboundedSet
+@enduml
+
+@startuml Figure 10-3
+interface Set <<interface>> {
+    + add()
+    + delete()
+    + isMember()
+}
+
+class PersistentSet
+class 3rdPersistentSet
+class PersistentObject
+
+PersistentSet -u-|> Set
+PersistentSet *-r-> 3rdPersistentSet
+note on link
+<<delegate>>
+end note
+3rdPersistentSet -u-> PersistentObject
+@enduml
+
+@startuml Figure 10-4
+interface MemberContainer <<interface>> {
+    + delete()
+    + isMember()
+}
+
+interface Set <<interface>> {
+    + add()
+}
+
+class PersistentSet {
+    + add(PersistentObject)
+}
+class 3rdPersistentSet
+class PersistentObject
+
+Set -r-|> MemberContainer
+PersistentSet --u-|> MemberContainer
+PersistentSet *-r-> 3rdPersistentSet
+note on link
+<<delegate>>
+end note
+3rdPersistentSet -u-> PersistentObject
+@enduml

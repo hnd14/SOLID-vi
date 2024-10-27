@@ -1,0 +1,10 @@
+@startuml Figure 12-4
+rectangle "ATM UI" <<interface>> as atmUI
+rectangle "Screen UI" as scr
+rectangle "Braille UI" as Brl
+rectangle "Speech UI" as spk
+
+scr .u.|> atmUI
+Brl .u.|> atmUI
+spk .u.|> atmUI
+@enduml

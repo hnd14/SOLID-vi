@@ -1,0 +1,14 @@
+@startuml Figure 11-5
+interface Regulate <<function>>
+
+interface Thermometer <<interface>>
+interface Heater <<interface>>
+
+class IOChannelThermometer 
+class IOChannelHeater
+
+Regulate -d-> "<<parameter>>" Thermometer
+Regulate -d-> "<<parameter>>" Heater
+Heater <|-d- IOChannelHeater
+Thermometer <|-d- IOChannelThermometer
+@enduml

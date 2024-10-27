@@ -1,0 +1,29 @@
+@startuml Figure 12-6
+interface Transaction <<interface>> {
+    + Execute()
+}
+
+class DepositTransaction
+class WithdrawalTransaction
+class TransferTransaction
+
+interface DepositUI <<interface>>
+interface WithdrawUI <<interface>>
+interface TransferUI <<interface>>
+
+interface UI <<interface>>
+
+
+DepositTransaction -u-|> Transaction
+WithdrawalTransaction -u-|> Transaction
+TransferTransaction -u-|> Transaction
+
+DepositTransaction .d.> DepositUI
+WithdrawalTransaction .d.> TransferUI
+TransferTransaction .d.> WithdrawUI
+
+UI .u.|> DepositUI
+UI .u.|> TransferUI
+UI .u.|> WithdrawUI
+
+@enduml

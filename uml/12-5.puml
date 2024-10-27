@@ -1,0 +1,19 @@
+@startuml Figure 12-5
+interface Transaction <<interface>> {
+    + Execute()
+}
+
+class DepositTransaction
+class WithdrawalTransaction
+class TransferTransaction
+
+interface UI <<interface>>
+
+DepositTransaction -u-|> Transaction
+WithdrawalTransaction -u-|> Transaction
+TransferTransaction -u-|> Transaction
+
+DepositTransaction .d.> UI
+WithdrawalTransaction .d.> UI
+TransferTransaction .d.> UI
+@enduml
