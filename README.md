@@ -690,6 +690,91 @@ Một số ngôn ngữ như *Eiffel* có hỗ trợ cho việc khai báo và ki�
 
 Unit test là một cách để lập trình viên ngầm khẳng định những điều kiện đầu vào cũng như kết quả của hàm do mình viết. Vì vậy, tác giả của các lớp sử dụng sẽ cần review UT do tác giả của lớp được dùng viết.
 
+### Một ví dụ thực tế
+
+Hình vuông với chữ nhật thế là đủ rồi! Thế LSP có ảnh hưởng đến phần mềm thực tế không? Hãy cùng đến với ví dụ dưới đây xuất phát từ một dự án tác giả đã làm cách đây vài năm.
+
+#### Động lực của dự án
+
+Vào những năm đầu thập niên 90, tôi đã mua một phần mềm từ bên thứ 3 có một vài lớp container. Các containers này được chia làm hai dạng như kiểu `Bag` và `Set` của ngôn ngữ *Smalltalk*. Có 2 loại `Set` và 2 loại `Bag`. Một loại là có giới hạn và được tạo dựa trên một array, loại còn lại là không giới hạn thì được tạo dựa trên 1 Linked List.
+
+Constructor của `Set` có giới hạn thì yêu cầu phải đưa vào số lượng tối đa phần tử có thể được chứa ở trong nó. Sau đó bộ nhớ cho những phần tử này sẽ được cung cấp như là 1 mảng trong `BoundedSet`. Vì thế, nếu 1 `BoundedSet` có thể được tạo, ta có thể đảm bảo rằng ta có đủ bộ nhớ cho nó, và việc truy xuất phần tử từ `BoundedSet` cũng rất nhanh vì nó được dựa trên 1 array. Không có bất kỳ hành động cấp phát bộ nhớ nào cần được thực hiện trong quá trình hoạt động bình thường của `BoundedSet`. Và bởi vì bộ nhớ đã được cấp trước, ta có thể đảm bảo rằng việc hoạt động của `BoundedSet` sẽ không làm cạn bộ nhớ ở Heap. Mặt khác, `BoundedSet` khá là lãng phí khi mà ta thường xuyên không thể tận dụng hết bộ nhớ được cấp cho nó.
+
+Ngược lại, `UnboundedSet` không có bất kỳ giới hạn nào về số lượng phần tử. Miễn là trong Heap vẫn còn bộ nhớ, nó vẫn có thể nhận thêm phần tử. Ngoài ra, nó cũng rất tiết kiệm bộ nhớ khi mà nó chỉ nhận phần bộ nhớ cần để lưu những phần tử hiện tại. Tuy vậy, nó cũng khá chậm bới việc cấp phát và giải phóng bộ nhớ phải trở thành một phần công việc của nó. Và đồng thời, cũng có rủi ro là việc hoạt động của nó có thể gây cạn kiệt bộ nhớ heap.
+
+Tác giả khá không hài lòng với các interface có sẵn của các lớp này và cũng có mong muốn thay thế chúng bằng những lớp tốt hơn trong tương lai. Vì vậy, tác giả không muốn chương trình của mình phụ thuộc vào những lớp này, và ông đã chọn việc bọc những lớp từ bên thứ ba này vào một lớp trừu tượng do ông định nghĩa. (*Hình 10-2*)
+
+![Figure 10-2](./imgs/Figure%2010-2.png)
+***Figure 10-2** Lớp adapter cho container*
+
+Tác giả đã tạo ra một lớp trừu tượng `Set` với các hàm trừu tượng `Add`, `Delete`, và `IsMember` như trong *snippet 10-4*. Cấu trúc này hợp nhất 2 loại `Set` và cho phép tương tác với chúng thông qua một interface chung. Bằng cách này, những lớp muốn dùng chúng có thể dùng chúng có thể dùng một biến kiểu `Set<T>&` mà không cần phải quan tâm là `Set` nó đang làm việc cùng là có giới hạn hay không. (Xem hàm `PrintSet` ở *Snippet 10-5*)
+```cpp
+Abstract Set Class
+template <class T>
+class Set
+{
+    public:
+        virtual void Add(const T&) = 0;
+        virtual void Delete(const T&) = 0;
+        virtual bool IsMember(const T&) const = 0;
+};
+```
+*Snippet 10-4*
+
+```cpp
+template <class T>
+void PrintSet(const Set<T>& s)
+{
+    for (Iterator<T>i(s); i; i++)
+        cout << (*i) << endl;
+}
+```
+*Snippet 10-5*
+
+Việc không cần phải quan tâm xem ta đang tương tác với loại `Set` nào ở dưới là một ưu điểm lớn. Nó đồng nghĩa với việc là lập trình viên có thể tùy ý quyết định xem việc dùng loại `Set` nào là hợp lý trong mỗi ngữ cảnh cụ thể mà các hàm khách của `Set` sẽ hoàn toàn không bị ảnh hưởng gì bởi quyết định đó. Họ có thể chọn dùng `UnboundedSet` khi mà bộ nhớ bị khan hiếm còn thời gian xử lý thì không quá quan trọng, hoặc họ cũng có thể dùng `BoundedSet` cho những tác vụ cần xử lý nhanh và bộ nhớ thì thoải mái. 
+
+#### Vấn đề
+
+Tôi muốn thêm `PersistentSet` và trong hệ thống này. `PersistentSet` là một `Set` mà có thể được viết ra một stream và có thể được đọc vào ngược lại vào một lúc khác, có thể là bởi một phần mềm khác. Thật không may, thư viện bên thứ 3 duy nhất cung cấp cho tôi persistent set lại không hỗ trợ `template`. Thay vì vậy, nó chỉ chấp nhận những vật được mở rộng từ một lớp trừu tượng `PersistentObject`. Tôi tạo ra thiết kế ở *hình 10-3*.
+
+![Figure 10-3](./imgs/Figure%2010-3.png)
+***Figure 10-3** Cấu trúc kế thừa của PersistentSet*
+
+Lưu ý rằng `PersistentSet` chứa một persistent set của bên thứ 3 mà nó sẽ ủy thác mọi tác vụ của `Set` cho. Vì vậy, khi bạn gọi đến `PersistentSet`, nó chỉ đơn giản là chuyển tiếp lệnh đó đến cho set của bên thứ ba chứa bên trong nó.
+
+Thoáng qua, điều này trông có vẻ ổn. Tuy vậy, có những hệ quả xấu xí của thiết kế này. Các thành phần muốn được thêm vào `PersistentSet` phải được mở rộng từ `PersistentObject` vì nó chỉ chuyển tiếp vật phẩm đó cho persistent set của bên thứ ba. Trong khi đó, `Set` hoàn toàn không có ràng buộc đó.
+
+Khi một lớp nào đó thêm một phần tử vào lớp gốc `Set`, client chẳng có cách nào để biết được liệu rằng `Set` này có phải là `PersistentSet` hay không. Và cũng vì vậy, nó cũng không thế nào biết rằng liệu phần tử nó muốn thêm vào có cần phải mở rộng từ `PersistentObject` hay không.
+
+Xét *snippet 10-6*:
+
+```cpp
+template <typename T>
+void PersistentSet::Add(const T& t)
+{
+    PersistentObject& p =
+        dynamic_cast<PersistentObject&>(t);
+    itsThirdPartyPersistentSet.Add(p);
+}
+```
+
+Đoạn code này cho ta thấy rõ rằng là nếu ta cố thêm một phần tử không phải là `PersistentObject` và `PersistentSet` của tác giả, ta sẽ gặp một run-time error, cụ thể là `dynamic_cast` sẽ throw `bad_cast`. Chẳng có một hàm nào đang dùng `Set` gốc expect việc `add` có thể quăng lỗi, và chúng sẽ bị rối vì một lớp mở rộng của `Set`. Đây rõ ràng là một vi phạm LSP.
+
+Đây có phải là vấn đề? Rõ là vậy rồi. Những hàm mà trước đây chẳng bao giờ gặp lỗi bây giờ lại gặp run-time error khi nhận được một `PersistentSet`. Debug những lỗi này cũng tương đối khó khăn vì lỗi run-time xảy ra ở nơi khá xa so với nơi xảy ra lỗi logic, mà ở đây thường là quyết định đưa `PersistentSet` vào hàm này hay là quyết định thêm một đối tượng không phải là `PersistentObject` vào trong `PersistentSet`. Trong cả hai trường hợp này, nơi đưa ra quyết định có thể nằm cách gọi `Add` cả triệu dòng lệnh, và việc tìm ra và sửa nó là không hề đơn giản.
+
+#### Một cách giải quyết không tuân thủ LSP
+
+Vậy làm sao để xử lý vấn đề này? Vài năm trước, tôi xử lý nó bằng một quy ước. Hay nó khác đi, tôi đã không xử lý nó ở trong code mà thay vào đó, tôi đặt ra một quy ước rằng `PersistentSet` và `PersistentObject` sẽ không được dùng trực tiếp trong cả phần mềm. Chúng chỉ được sử dụng ở một module có nhiệm vụ đọc và viết toàn bộ vật chứa vào trong một bộ nhớ dài hạn. Khi một hộp chứa cần được lưu vào bộ nhớ dài hạn, nó sẽ được đưa vào module này, nội dung của nó sẽ được chuyển về các `PersistentObject` tương ứng trước khi được lưu vào bộ nhớ dài hạn. Khi cần đọc những container từ bộ nhớ dài hạn, quá trình này sẽ được đảo ngược, và module này sẽ dịch container từ một `PersistentContainer` sang một container không persistent tương ứng.
+
+Cách làm này có vẻ quá bó buộc, nhưng nó là cách duy nhất tôi có thể nghĩ ra để có thể tránh việc `PersistentSet` xuất hiện ở những nơi mà ta muốn thêm các đối tượng không persistent vào trong một `Set`. Hơn thế nữa, việc này sẽ phá vỡ mọi sự phụ thuộc của phần mềm vào persistent.
+
+Vậy cách làm này có hoạt động? Không hẳn. Quy ước của tôi bị phá vỡ bởi những lập trình viên không hiểu được sự cần thiết của nó. Vấn đề của quy ước là mọi người cần phải tuân thủ nó. Nếu có một lập trình viên không nắm được, hoặc không đồng ý tuân thủ, một quy ước và phá vỡ nó, cả hệ thống có thể bị ảnh hưởng
+
+#### Một cách giải quyết tuân thủ LSP
+Vậy nếu làm lại bây giờ thì ta nên làm thế nào? Đầu tiên, ta cần thừa nhận rằng `PersistentSet` không phải là một `Set`. Nó không phải là một mở rộng đúng nghĩa của `Set`. Chính vì vậy, ta cần phải tách gia phả của những lớp này, nhưng không cần phải tách rời hoàn toàn. Có những tính năng được hõ trợ bởi cả `Set` và `PersistentSet`. Rõ ràng, ngoại trừ `Add`, tất cả các hàm còn lại đều chẳng có vấn đề gì. Vậy thì tốt hơn hết là ta nên tạo một hệ thống mà trong đó cả `PersistentSet` và `Set` đều kế thừa từ một interface trừu tượng chung (*Hình 10-4*). Điều này cho phép `PersistentObject` được duyệt qua hay kiểm tra việc xem liệu nó có phải là phần tử không, đồng thời nó ngăn chặn việc thêm một đối tượng không phải `PersistentObject` vào `PersistentSet`.
+
+![Figure 10-4](./imgs/Figure%2010-4.png)
+***Figure 10-4** Thiết kê tuân thủ LSP*
 ### Phân tích thay vì kế thừa
 
 Một trường hợp thú vị nữa là mối quan hệ giữa `Line` (đường thẳng) và `LineSegment`(đoạn thẳng). Xét snippet *10-7* và *10-8*.
