@@ -1088,6 +1088,200 @@ class TimedDoor : public Door, public TimerClient
 
 ### Ví dụ về ATM User Interface
 
+Bây giờ hãy cùng xem xét một ví dụ thú vị hơn. Vấn đề cơ bản của một máy ATM truyền thống. UI của một máy ATM truyền thống cần phải rất linh hoạt, đầu ra cần phải được thể hiện được bằng nhiều ngôn ngữ, có khi thì đầu ra này cần được thể hiện qua một màn hình, lúc khác thì nó lại cần được đọc lên, một thời điểm khác nữa nó lại cần được thể hiện trên một bảng braille. Rõ ràng, ta có thể đạt được điều này bằng cách dùng một interface trừu tượng với các hàm trừu tượng thể hiện các loại tin nhắn cần được gửi với UI này.
+
+![Figure 12-4](./imgs/Figure%2012-4.png)
+
+Đồng thời, các loại giao dịch khác nhau có thể được thực hiện bởi máy ATM này cũng được cụ thể hóa thông qua một mở rộng của interface trừu tượng `Transaction`. Như vậy, ta có thể sẽ có các lớp như `DepositTransaction`, `WithdrawalTransaction`, và `TransferTransaction` mà mỗi lớp này lại sẽ gọi đến những hàm được cung cấp của UI. Ví dụ `DepositTransaction` sẽ gọi `RequestDepositAmount` để biết được người dùng muốn gửi bao nhiêu tiền. Tương tự vậy, `TransferTransaction` sẽ gọi `RequestTransferAmount` để xem người dùng muốn chuyển bao nhiêu tiền giữa các tài khoản. Điều này được thể hiện ở diagram 12-5.
+
+![Figure 12-5](./imgs/Figure%2012-5.png)
+***Hình 12-5.** Cấu trúc kế thừa của giao dịch ATM*
+
+Chú ý rằng đây chính xác là trường hợp mà ISP khuyên chúng ta nên tránh. Mỗi loại giao dịch chỉ dùng một vài phương thức của UI mà các loại giao dịch khác không dùng đến. Điều này tạo ra một khả năng rõ ràng là nếu có một thay đổi nào đó ở một transaction buộc UI phải thay đổi, tất cả các transaction cũng như các lớp phụ thuộc lên chúng phải được compile lại. Có một dấu hiệu dễ vỡ đâu đây!
+
+Cụ thể hơn, ví dụ như có một `PayGasBillTransaction` được thêm vào, ta sẽ cần chỉnh sửa interface UI để thêm các hàm hỗ trợ cho loại giao dịch mới này. Đáng tiếc thay, bởi vì `DepositTransaction`, `WithdrawalTransaction`, và `TransferTransaction` đều phụ thuộc lên UI, tất cả đều phải được compile lại. Tệ hơn nữa, nếu các loại giao dịch này được deploy ở các DDL hay thư viện khác nhau, tất cả các DDL và thư viện này sẽ đều phải được deploy lại mặc dù chẳng có logic gì ở trong chúng bị thay đổi cả. Đã cảm thấy nó nhớp nháp chưa?
+
+May mắn thay, sự ràng buộc không đáng có này có thể dễ bị phá vỡ bằng cách phân rã interface UI thành nhiều interface riêng lẻ cho mỗi loại giao dịch (`DepositUI`, `WithdrawalUI`, và `TransferUI`). Các interface này sau đó có thể được đa kế thừa bởi interface UI. *Hình 12-6* và *Snippet 12-6* thể hiện thiết kế này.
+
+![Figure 12-6](./imgs/Figure%2012-6.png)
+***Hình 12-6.** Cấu trúc kế thừa của giao dịch ATM đã được phân tách*
+
+Mỗi khi ta muốn thêm một loại giao dịch mới mở rộng từ `Transaction`, một UI tương ứng cho nó phải được tạo ra. Điều này buộc ta phải thay đổi UI interface cũng như các lớp con của nó. Tuy nhiên, các lớp này lại không có quá nhiều lớp phụ thuộc lên chúng. Thực tế là chúng chỉ được dùng bởi `main` hay là một process nào đó chịu trách nhiệm khởi động hệ thống và tạo các các đối tượng cụ thể của UI, do đó việc thay đổi trực tiếp vào UI cũng sẽ không có quá nhiều tác hại.
+
+```cpp
+class DepositUI
+{
+ public:
+ virtual void RequestDepositAmount() = 0;
+};
+class DepositTransaction : public Transaction
+{
+    public:
+        DepositTransaction(DepositUI& ui)
+        : itsDepositUI(ui)
+        {}
+        virtual void Execute()
+        {
+            ...
+            itsDepositUI.RequestDepositAmount();
+            ...
+        }
+    private:
+        DepositUI& itsDepositUI;
+};
+class WithdrawalUI
+{
+    public:
+        virtual void RequestWithdrawalAmount() = 0;
+};
+class WithdrawalTransaction : public Transaction
+{
+    public:
+        WithdrawalTransaction(WithdrawalUI& ui)
+        : itsWithdrawalUI(ui){}
+        virtual void Execute()
+        {
+            ...
+            itsWithdrawalUI.RequestWithdrawalAmount();
+            ...
+        }
+    private:
+        WithdrawalUI& itsWithdrawalUI;
+};
+
+class TransferUI
+{
+    public:
+        virtual void RequestTransferAmount() = 0;
+};
+
+class TransferTransaction : public Transaction
+{
+ public:
+    TransferTransaction(TransferUI& ui)
+    : itsTransferUI(ui){}
+    virtual void Execute()
+    {
+        ...
+        itsTransferUI.RequestTransferAmount();
+        ...
+    }
+ private:
+    TransferUI& itsTransferUI;
+};
+
+class UI : public DepositUI
+ , public WithdrawalUI
+ , public TransferUI
+{
+    public:
+        virtual void RequestDepositAmount();
+        virtual void RequestWithdrawalAmount();
+        virtual void RequestTransferAmount();
+};
+```
+*Snippet 12-6*
+
+Phân tích kỹ lưỡng *snippet 12-6*, ta nhận thấy một vấn đề của việc tuân thủ ISP mà ta không nhìn thấy rõ ràng trong ví dụ về `TimedDoor`. Chú ý rằng mỗi loại giao dịch cần phải biết về UI cần dùng tương ứng của chúng theo một cách nào đó. `DepositTransaction` phải biết về `DepositUI`, `WithdrawTransaction` phải biết về `WithdrawUI`, ... Trong *snippet 12-6*, ta xử lý vấn đề này bằng cách buộc mỗi giao dịch phải được cung cấp một UI tương ứng khi khởi tạo. Bằng cách này, ta có thể áp dụng thành ngữ khởi tạo như trong *snippet 12-7*.
+
+```cpp
+UI Gui; // global object;
+void f()
+{
+    DepositTransaction dt(Gui);
+}
+```
+*Snippet 12-7*
+
+Việc này khá tiện, nhưng nó cũng đồng thời bắt mỗi giao dịch phải giữ một con trỏ trỏ đến UI tương ứng của nó. Một cách khác để xử lý vấn đề là tạo một bộ các biến toàn cục như *snippet 12-8*
+
+```cpp
+// in some module that gets linked in
+// to the rest of the app.
+static UI Lui; // non-global object;
+DepositUI& GdepositUI = Lui;
+WithdrawalUI& GwithdrawalUI = Lui;
+TransferUI& GtransferUI = Lui;
+// In the depositTransaction.h module
+class WithdrawalTransaction : public Transaction
+{
+    public:
+        virtual void Execute()
+        {
+            ...
+            GwithdrawalUI.RequestWithdrawalAmount();
+            ...
+        }
+};
+
+```
+*Snippet 12-8*
+
+Trong *C++*, việc bỏ tất cả các biến toàn cục tương tự như ở *snippet 12-8* và trong cùng một class để tránh gây ô nhiễm namespace nghe có vẻ hấp dẫn (Xem *Snippet 12-9*). Tuy vậy, việc này lại có một tác dụng phụ không mong muốn. Để sử dụng `UIGlobals`, ta sẽ cần phải `#include "ui_globals.h"`, mà module này lại có `#include "depositUI.h"`, `#include "withdrawUI.h"`, và `#include "transferUI.h"`. Điều này nghĩa là bây giờ bất cứ module muốn dùng một UI nào đó sẽ, theo tính chất bắc cầu, phụ thuộc vào tất cả các UI khác nhau - đây chính là vấn đề mà nãy giờ ta muốn tránh. Bây giờ nếu bất cứ một module UI nào bị thay đổi, tất cả các module có `#include "ui_globals.h"` sẽ bị buộc phải compile lại. `UIGlobals` bây giờ lại hợp nhất tất cả các interface mà ta phải tốn bao công để phân tách!
+
+```cpp
+// in ui_globals.h
+#include "depositUI.h"
+#include "withdrawalUI.h"
+#include "transferUI.h"
+class UIGlobals
+{
+    public:
+        static WithdrawalUI& withdrawal;
+        static DepositUI& deposit;
+        static TransferUI& transfer
+};
+// in ui_globals.cc
+static UI Lui; // non-global object;
+DepositUI& UIGlobals::deposit = Lui;
+WithdrawalUI& UIGlobals::withdrawal = Lui;
+TransferUI& UIGlobals::transfer = Lui;
+```
+*Snippet 12-9*
+
+#### Monad và Polyad
+
+Xét hàm `g` cần cả `DepositUI` và `TransferUI`, và ta muốn các UI này được đưa vào hàm dưới dạng biến. Vậy ta nên biểu diễn hàm này thế nào?
+
+```cpp
+void g(DepositUI&, TransferUI&); // polyadic form
+```
+
+Hay là
+
+```cpp
+void g(UI&); // monadic form
+```
+
+Việc áp dụng cách thứ 2 khá hấp dẫn khi mà với cách đầu ta biết rằng cả hai biến con trỏ sẽ cùng trở đến một đối tượng. Hơn thế nữa, nếu ta dùng cách đầu (polyadic), khi muốn gọi hàm *g*, ta sẽ phải gọi như thế này:
+
+```cpp
+g(ui,ui);
+```
+
+Trông nó khá kỳ cục nhỉ...
+
+Bất kể có kỳ cục hay không, trong nhiều trường hợp, cách định nghĩa hàm thứ nhất vẫn nên được ưu tiên hơn. Đầu tiên, việc dùng kiểu monadic buộc `g` phải phụ thuộc vào tất cả các interface ở trong UI. Vậy là trong trường hợp `WithdrawUI` cần thay đổi, `g` cũng sẽ bị ảnh hưởng dù nó chẳng liên quan gì. Điều này còn tệ hơn `g(ui,ui)`! Hơn thế nữa, ta cũng không chắc rằng trong mọi hoàn cảnh 2 biến của `g` sẽ luôn trỏ vào cùng một đối tượng. Việc tất cả các interface này được hợp nhất trong cùng một vật thể là việc mà `g` không cần phải biết. Vì thế. tác giả ưu tiên cách gọi thứ nhất (polyadic) hơn.
+
+**Nhóm các client.** - Các client của một lớp thường có thể được nhóm dựa vào các hàm mà nó cần gọi. Bằng cách này, một interface được tạo ra có thể phục vụ cho một nhóm các client và làm giảm số lượng interface mà lớp cần phải cụ thể hóa. Nó cũng làm cho lớp dịch vụ ở dưới không phải phụ thuộc vào mỗi client.
+
+Đôi khi, một vài phương thức được sử dụng bởi 2 nhóm client khác nhau sẽ có những điểm chung. Nếu lượng điểm chung là nhỏ, những nhóm này vẫn nên được tách biệt ra. Những hàm dùng chung lúc này nên được khai báo ở interface cho cả 2 nhóm, và sau đó lớp server cụ thể sẽ kế thừa cả 2 interface nhưng chỉ hiện thực hóa các hàm bị trùng một lần.  
+
+**Các interface hay thay đổi** - Khi các ứng dụng hướng đối tượng được cập nhật, các interface hiện hữu của các lớp và component cũng có thể phải thay đổi. Có những lúc mà những thay đổi này dẫn đến việc cả phần mềm của chúng ta bị ảnh hưởng vô cùng lớn và buộc ta phải deploy lại toàn bộ hệ thống. Một cách để giảm nhẹ nỗi đau này là thêm một interface mới thay vì việc chỉnh sửa interface hiện hữu. Các client của interface cũ nếu muốn chuyển qua dùng interface mới có thể chủ động hỏi đối tượng được truyền vào về interface mới này (*Snippet 12-10*).
+
+```cpp
+void Client(Service* s)
+{
+ if (NewService* ns = dynamic_cast<NewService*>(s))
+ {
+    // use the new service interface
+ }
+}
+
+```
+*Snippet 12-10*
+
+Một lần nữa, ta cũng cần chú ý không lạm dụng việc này. Chỉ việc tưởng tượng một lớp xử lý hàng trăm interface, một vài cái cho version, một vài cho các nhóm client là đã đủ đáng sợ rồi. 
 ### Kết luận
 
 Các lớp "fat" tạo ra những sự ràng buộc kỳ cục và tai hại giữa các clients của chúng. Khi một client của một lớp "fat" buộc lớp này phải thay đổi, tất cả các client khác của nó sẽ bị ảnh hưởng. Vì vậy, mỗi client chỉ nên phụ thuộc vào các methods mà họ thực sự gọi. Điều này có thể đạt được bằng cách chia nhỏ interface của lớp "fat" ra thành nhiều interface riêng biệt phục vụ 
