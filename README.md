@@ -1027,7 +1027,94 @@ Mặc dù ta đã đảo ngược sự phụ thuộc và để `Lamp` thực hi�
 Vậy là trong trường hợp này, ta thu được một kết quả vô cùng thú vị là chẳng ai sở hữu interface `SwitchableDevice`. Interface này có thể được dùng bởi vô số các client khác nhau, cũng như có thể được cụ thế hóa bởi vô số các server khác nhau. Vì vậy, interface này nên được tách biệt ra khỏi cả nhóm các client và nhóm các server. Trong C++, ta sẽ đặt interface này vào một library và namespace riêng. Trong Java, điều này có nghĩa là ta sẽ đặt interface này vào một package riêng.
 
 ### Ví dụ về `Furnace`
+
+Hãy cùng xem xét một ví dụ thú vị hơn. Xét một phần mềm điều khiển nhiệt độ của một cái lò lửa. Phần mềm này có thể đọc được nhiệt độ hiện tại thông qua một kênh I/O và ra lệnh cho cái lò bật hay tắt bằng cách gửi tín hiệu bật/tắt đến một kênh IO khác. Cấu trúc này được thể hiện trong *snippet 11-2*
+
+```cpp
+#define TERMOMETER 0x86
+#define FURNACE 0x87
+#define ENGAGE 1
+#define DISENGAGE 0
+void Regulate(double minTemp, double maxTemp)
+{
+ for(;;)
+ {
+    while (in(THERMOMETER) > minTemp)
+        wait(1);
+    out(FURNACE,ENGAGE);
+
+    while (in(THERMOMETER) < maxTemp)
+        wait(1);
+    out(FURNACE,DISENGAGE);
+ }
+}
+
+```
+
+Ý định cấp cao của phần mềm này thì rất rõ ràng, nhưng nó lại đang chứa đầy chi tiết cấp thấp. Điều này làm cho đoạn code này không thể được tái sử dụng ở những nơi khác cần một logic tương tự.
+
+Đây không phải là một vấn đề lớn vì đoạn code này vẫn còn tương đối bé. Mặc dù vậy, đây vẫn là một điều đáng tiếc khi ta không thể tái sử dụng đoạn code thuật toán này. Chính vì điều đó, ta muốn đảo ngược sự phụ thuộc và thấy vài thứ như *hình 11-5*
+
+Bây giờ,  hàm `Regulate` nhận thêm 2 biến nữa mà cả 2 biến này đều là các interface trừu tượng. Interface `Thermometer` có thể được đọc, và interface `Heater` thì có thể được `engage` hay `disengage`. Đây là tất cả những gì `Regulate` cần. Bây giờ ta có thể refactor nó thành *snippet 11-3*.
+
+```cpp
+template <typename THERMOMETER, typename HEATER>
+class Regulate(THERMOMETER& t, HEATER& h,
+ double minTemp, double maxTemp)
+{
+    for(;;)
+    {
+        while (t.Read() > minTemp)
+            wait(1);
+        h.Engage();
+        while (t.Read() < maxTemp)
+            wait(1);
+        h.Disengage();
+    }
+}
+```
+*snippet 11-3*
+
+Việc này đã đảo ngược sự phụ thuộc và làm cho chính sách quản lý ở tầng cao không còn phụ thuộc vào chi tiết của nhiệt kế hay lò lửa ở tầng thấp. Điều này phép việc tái sử dụng `Regulate` trở nên dễ dàng hơn.
+
+#### Tính đa hình động và đa hình tĩnh
+Ta đã đạt được sự đảo ngược phụ thuộc và làm cho `Regulate` trở nên khái quát thông qua việc tận dụng tính đa hình động (với lớp và interface trừu tượng). Tuy vậy, vẫn còn một cách nữa để đạt được kết quả tương tự. Ta cũng có thể sử dụng tính đa hình tĩnh từ `template` của `C++` như *snippett 11-4*
+
+```cpp
+template <typename THERMOMETER, typename HEATER>
+class Regulate(THERMOMETER& t, HEATER& h,
+ double minTemp, double maxTemp)
+{
+    for(;;)
+    {
+        while (t.Read() > minTemp)
+            wait(1);
+        h.Engage();
+        while (t.Read() < maxTemp)
+            wait(1);
+        h.Disengage();
+ }
+}
+```
+*Snippett 11-4*
+
+Điều này cũng cho phép ta đạt được kết quả giống hệt như đa hình động mà không cần phải xử lý overhead, và nó cũng làm cho hàm `Regulate` trở nên linh động hơn. Trong `C++`, các hàm `Read`, `Engage`, và `Disengage` lúc này không cần phải là `virtual`. Hơn thế nữa, bất kỳ lớp nào hỗ trợ `Read`, `Engage`, và `Disengage` đều có thể được dùng ở đây mà không cần phải được thừa kế từ chung một lớp gốc.
+
+Như là một `template`, `Regulate` không quan tâm các hàm `Read`, `Engage`, và `Disengage` này làm gì, miễn là hàm `Read` có tồn tại trong lớp thay thế cho `THERMOMETER` và `Engage` với `Disengage` được hỗ trợ bởi lớp thay thế cho `HEATER`. Chính vì vậy, các lớp thay thế cần phải hỗ trợ các interface được dùng bởi `template`, hay nói khác đi, `template` `Regulate` và các lớp thay thế cho `HEATER` và `THERMOMETER` phải thống nhất cùng một interface.
+
+Đa hình tĩnh cũng phá vỡ và đảo ngược sự phụ thuộc một cách hiệu quả, nhưng nó không giải quyết được nhiều vấn đề như đa hình động. Các nhược điểm của `template` là:
+
+1. Loại `THERMOMETER` và `HEATER` không thể được thay đổi ở runtime
+2. Mỗi khi ta muốn thay đổi loại `THERMOMETER` và `HEATER` cần dùng, ta buộc phải compile và deploy lại.
+
+Chính vì những lý do trên mà ta chỉ nên ưu tiên dùng đa hình tĩnh trong những trường hợp yêu cầu thời gian xử lý rất cao.
 ### Kết luận
+
+Lập trình thủ tục truyền thống tạo nên những cấu trúc phụ thuộc mà trong đó các chính sách ở tầng cao phụ thuộc hoàn toàn vào các chi tiết xử lý ở tầng thấp. Điều này thật không may vì khi đó các chính sách quan trọng ở tầng cao trở nên rất dễ vỡ trước những thay đổi ở tầng thấp. Lập trình hướng đối tượng cho phép ta đảo ngược cấu trúc phụ thuộc đó để các module ở cả tầng cao và thấp đều sẽ phụ thuộc vào sự trừu tượng, và các module client ở tầng cao sẽ thường nắm quyền sở hữu các interface.
+
+Chính việc cấu trúc phụ thuộc được đảo ngược này là dấu hiệu của một thiết kế hướng đối tượng tốt. Nếu các cấu trúc phụ thuộc được đảo ngược, nó là một thiết kê hướng đối tượng, và nếu nó không được đảo ngược, thiết kế đó là một thiết kế thủ tục.
+
+Việc đảo ngược cấu trúc phụ thuộc là chìa khóa cho những ưu điểm được quảng cáo của lập trình hướng đối tượng. Việc áp dụng hợp lý là tối quan trọng trong việc tạo ra các framework có khả năng tái sử dụng cao cũng như viết ra những đoạn mã có tính bền vững trước những thay đổi. Bởi vì sự trừu tượng hóa đã tách rời được các phần chi tiết, việc bảo trì hệ thống cũng trở nên dễ dàng hơn.
 
 ## I - Interface Segration Principles
 
